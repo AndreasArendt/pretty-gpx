@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from pretty_gpx.common.drawing.components.elevation_profile import ElevationProfile
+from pretty_gpx.common.drawing.utils.scatter_point import MOUNTAIN_PASS_MAX_DISTANCE_M
 from pretty_gpx.common.drawing.utils.scatter_point import ScatterPoint, ScatterPointCategory
 from pretty_gpx.common.gpx.gpx_track import GpxTrack
 
@@ -66,7 +67,8 @@ def test_turnaround_near_peak_is_one_visit(furthest_distance, expected) -> None:
                      list_cumul_dist_km=[46.8, 47.4, 48.0])
     peak = ScatterPoint(name='Summit', lon=0., lat=37., category=ScatterPointCategory.MOUNTAIN_PASS)
     with patch('pretty_gpx.common.drawing.components.elevation_profile.get_pairwise_distance_m',
-               return_value=np.array([[506., furthest_distance, 507.]])):
+               return_value=np.array([[MOUNTAIN_PASS_MAX_DISTANCE_M * .9, furthest_distance,
+                                       MOUNTAIN_PASS_MAX_DISTANCE_M * .92]])):
         profile = ElevationProfile.from_track(track.get_bounds(), track, [peak], .45)
     assert profile.scatter_indices[peak.category] == expected
 

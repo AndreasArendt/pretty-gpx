@@ -1,20 +1,21 @@
-"""Offline coverage of the temporary nearby peak allowance."""
+"""Offline coverage of nearby peak inclusion and deduplication."""
 from unittest.mock import patch
 from overpy import Node, Result
 
+from pretty_gpx.common.drawing.utils.scatter_point import MOUNTAIN_PASS_MAX_DISTANCE_M
 from pretty_gpx.common.gpx.gpx_track import GpxTrack
 from pretty_gpx.common.request.overpass_request import OverpassQuery
 from pretty_gpx.rendering_modes.mountain.data.mountain_passes import process_mountain_passes
 
 
-def test_nearby_peaks_use_general_550_metre_limit(tmp_path) -> None:
+def test_nearby_peaks_use_configured_distance_limit(tmp_path) -> None:
     result = Result()
     for i, name in enumerate(['Nearby summit', 'Distant summit']):
         result.append(Node(node_id=i + 1, lat=37., lon=-3. + i * .01,
                            tags={'name': name, 'ele': '3000'}, attributes={}, result=result))
     query = OverpassQuery(query_unprocessed_results={'mountain_passes': result})
     track = GpxTrack()
-    with patch.object(track, 'get_distances_m', return_value=[506., 551.]):
+    with patch.object(track, 'get_distances_m', return_value=[MOUNTAIN_PASS_MAX_DISTANCE_M - 1, MOUNTAIN_PASS_MAX_DISTANCE_M + 1]):
         with patch('pretty_gpx.rendering_modes.mountain.data.mountain_passes.MOUNTAIN_PASS_CACHE.get_path',
                    return_value=str(tmp_path / 'peaks.pkl')):
             points = process_mountain_passes(query, track)
