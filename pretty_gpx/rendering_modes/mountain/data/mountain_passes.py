@@ -103,6 +103,7 @@ def process_mountain_passes(query: OverpassQuery, gpx_track: GpxTrack) -> list[S
             candidates = [pt for pt, d_m in zip(candidates, distances_m) if d_m < MOUNTAIN_PASS_MAX_DISTANCE_M]
 
             if len(candidates) != 0:
+                candidates = deduplicate_named_passes(candidates, gpx_track)
                 # Remove duplicates
                 for pt in candidates:
                     if len(passes) == 0 or np.min(get_distance_m(lonlat_1=(pt.lon, pt.lat),
