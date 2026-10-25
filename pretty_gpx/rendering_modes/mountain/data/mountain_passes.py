@@ -111,7 +111,6 @@ def process_mountain_passes(query: OverpassQuery, gpx_track: GpxTrack) -> list[S
                                                                                     for m in passes]))) > 200:
                         passes.append(pt)
 
-    passes = deduplicate_named_passes(passes, gpx_track)
     cache_pkl = MOUNTAIN_PASS_CACHE.get_path(gpx_track)
     write_pickle(cache_pkl, passes)
     query.add_cached_result(MOUNTAIN_PASS_CACHE.name, cache_file=cache_pkl)

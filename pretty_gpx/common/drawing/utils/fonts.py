@@ -81,9 +81,6 @@ TITLE_FONTS: Final = (
     CustomFont.SS_MALIBU,
     CustomFont.VINTAGE_RUBICON,
     CustomFont.VOEGIES,
-    CustomFont.MONTSERRAT_SEMIBOLD,
-    CustomFont.INTER_SEMIBOLD,
-    CustomFont.MANROPE_SEMIBOLD,
 )
 
 STATS_FONTS: Final = (
@@ -108,7 +105,4 @@ STATS_FONTS: Final = (
     CustomFont.SS_MALIBU,
     CustomFont.VINTAGE_RUBICON,
     CustomFont.VOEGIES,
-    CustomFont.MONTSERRAT_REGULAR,
-    CustomFont.INTER_REGULAR,
-    CustomFont.MANROPE_REGULAR,
 )
