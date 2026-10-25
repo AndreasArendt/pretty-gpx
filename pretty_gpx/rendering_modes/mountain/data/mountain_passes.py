@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 
+from pretty_gpx.common.drawing.utils.scatter_point import MOUNTAIN_PASS_MAX_DISTANCE_M
 from pretty_gpx.common.drawing.utils.scatter_point import ScatterPoint
 from pretty_gpx.common.drawing.utils.scatter_point import ScatterPointCategory
 from pretty_gpx.common.gpx.gpx_distance import get_distance_m
@@ -20,6 +21,27 @@ MOUNTAIN_PASSES_ARRAY_NAME = "mountain_passes"
 
 
 MOUNTAIN_PASS_CACHE = GpxDataCacheHandler(name='mountain_pass', extension='.pkl')
+
+
+def deduplicate_named_passes(points: list[ScatterPoint], gpx_track: GpxTrack) -> list[ScatterPoint]:
+    """Merge nearby OSM entries for the same named pass, preferring the route-side entry."""
+    if len(points) < 2:
+        return points
+    distances = gpx_track.get_distances_m(targets_lon_lat=[(p.lon, p.lat) for p in points])
+    selected: list[tuple[ScatterPoint, float]] = []
+    for point, route_distance in zip(points, distances):
+        name = ' '.join((point.name or '').split('\n')[0].casefold().split())
+        for i, (previous, previous_distance) in enumerate(selected):
+            previous_name = ' '.join((previous.name or '').split('\n')[0].casefold().split())
+            if (name and name == previous_name and
+                    get_distance_m(lonlat_1=(point.lon, point.lat),
+                                   lonlat_2=(previous.lon, previous.lat)) < 500):
+                if route_distance < previous_distance:
+                    selected[i] = (point, route_distance)
+                break
+        else:
+            selected.append((point, route_distance))
+    return [point for point, _ in selected]
 
 
 @profile
@@ -52,7 +74,7 @@ def process_mountain_passes(query: OverpassQuery, gpx_track: GpxTrack) -> list[S
     """Process the overpass API result to get the mountain passes."""
     if query.is_cached(MOUNTAIN_PASS_CACHE.name):
         cache_file = query.get_cache_file(MOUNTAIN_PASS_CACHE.name)
-        return read_pickle(cache_file)
+        return deduplicate_named_passes(read_pickle(cache_file), gpx_track)
 
     with Profiling.Scope("Process Mountain Passes"):
         results = query.get_query_result(MOUNTAIN_PASSES_ARRAY_NAME)
@@ -78,7 +100,7 @@ def process_mountain_passes(query: OverpassQuery, gpx_track: GpxTrack) -> list[S
         if len(candidates) != 0:
             # Keep only the ones close to the GPX track
             distances_m = gpx_track.get_distances_m(targets_lon_lat=[(pt.lon, pt.lat) for pt in candidates])
-            candidates = [pt for pt, d_m in zip(candidates, distances_m) if d_m < 50]
+            candidates = [pt for pt, d_m in zip(candidates, distances_m) if d_m < MOUNTAIN_PASS_MAX_DISTANCE_M]
 
             if len(candidates) != 0:
                 # Remove duplicates
@@ -88,6 +110,7 @@ def process_mountain_passes(query: OverpassQuery, gpx_track: GpxTrack) -> list[S
                                                                                     for m in passes]))) > 200:
                         passes.append(pt)
 
+    passes = deduplicate_named_passes(passes, gpx_track)
     cache_pkl = MOUNTAIN_PASS_CACHE.get_path(gpx_track)
     write_pickle(cache_pkl, passes)
     query.add_cached_result(MOUNTAIN_PASS_CACHE.name, cache_file=cache_pkl)

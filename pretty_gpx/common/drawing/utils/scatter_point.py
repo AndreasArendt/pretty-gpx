@@ -9,6 +9,10 @@ from pretty_gpx.common.utils.logger import logger
 from pretty_gpx.common.utils.utils import get
 
 
+# Temporary general allowance for nearby summits/passes not reached by the route.
+MOUNTAIN_PASS_MAX_DISTANCE_M = 100.0
+
+
 class ScatterPointCategory(Enum):
     """Scatter Point Category."""
     MOUNTAIN_PASS = auto()

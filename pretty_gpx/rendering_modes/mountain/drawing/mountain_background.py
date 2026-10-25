@@ -26,6 +26,7 @@ HIGH_RES_DPI = 400
 class MountainBackgroundParamsProtocol(Protocol):
     """Protocol for Mountain Background Parameters."""
     mountain_background_color: str
+    mountain_shadow_color: str | None
     mountain_dark_mode: bool
     mountain_azimuth: int
 
@@ -78,7 +79,9 @@ class MountainBackground:
             elevation_shading = self.low_res_elevation
         grey_hillshade = safe(elevation_shading).render_grey(params.mountain_azimuth)[..., None]
         background_color_rgb = hex_to_rgb(params.mountain_background_color)
-        color_0 = (0, 0, 0) if params.mountain_dark_mode else background_color_rgb
+        shadow_color_rgb = (hex_to_rgb(params.mountain_shadow_color)
+                            if params.mountain_shadow_color else background_color_rgb)
+        color_0 = (0, 0, 0) if params.mountain_dark_mode else shadow_color_rgb
         color_1 = background_color_rgb if params.mountain_dark_mode else (255, 255, 255)
         colored_hillshade = grey_hillshade * (np.array(color_1) - np.array(color_0)) + np.array(color_0)
 

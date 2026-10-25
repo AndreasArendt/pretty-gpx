@@ -42,6 +42,7 @@ class MultiMountainParams:
     centered_title_font_size: A4Float
     centered_title_fontproperties: FontProperties
 
+    mountain_shadow_color: str | None = None
     user_title: str | None = None
     user_uphill_m: int | None = None
     user_dist_km: float | None = None

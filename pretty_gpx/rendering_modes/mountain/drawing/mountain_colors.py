@@ -15,9 +15,31 @@ class MountainColors:
     background_color: str
     track_color: str
     peak_color: str
+    terrain_shadow_color: str | None = None
 
 
 MOUNTAIN_COLOR_THEMES: Final[dict[DarkTheme | LightTheme, MountainColors]] = {
+    DarkTheme.MIDNIGHT_ICE: MountainColors(dark_mode=True,
+                                           background_color="#142331",
+                                           track_color="#A8DADC",
+                                           peak_color="#F1F4EF"),
+    DarkTheme.SLATE_CITRUS: MountainColors(dark_mode=True,
+                                          background_color="#252C35",
+                                          track_color="#DDE2E5",
+                                          peak_color="#D4EB83"),
+    LightTheme.WARM_MINIMAL: MountainColors(dark_mode=False,
+                                           background_color="#F5F2EB",
+                                           track_color="#252A2D",
+                                           peak_color="#BC6048"),
+    LightTheme.ALPINE_SAGE: MountainColors(dark_mode=False,
+                                          background_color="#F2F1E8",
+                                          track_color="#284D43",
+                                          peak_color="#955638",
+                                          terrain_shadow_color="#A8B5A0"),
+    LightTheme.SAND_COBALT: MountainColors(dark_mode=False,
+                                          background_color="#EDE5D8",
+                                          track_color="#3155C6",
+                                          peak_color="#242D3C"),
     DarkTheme.BLACK_GREEN_YELLOW:  MountainColors(dark_mode=True,
                                                   background_color="#264653",
                                                   track_color="#2a9d8f",

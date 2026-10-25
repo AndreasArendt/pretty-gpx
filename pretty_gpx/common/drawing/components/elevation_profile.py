@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 """Drawing Component for Elevation Profile."""
-import math
 from collections import defaultdict
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Protocol
 
 import numpy as np
@@ -13,6 +13,8 @@ from scipy.ndimage import uniform_filter1d
 from pretty_gpx.common.drawing.components.annotated_scatter import ScatterParams
 from pretty_gpx.common.drawing.utils.drawing_figure import A4Float
 from pretty_gpx.common.drawing.utils.drawing_figure import DrawingFigure
+from pretty_gpx.common.drawing.utils.fonts import ANNOTATION_FONT
+from pretty_gpx.common.drawing.utils.scatter_point import MOUNTAIN_PASS_MAX_DISTANCE_M
 from pretty_gpx.common.drawing.utils.scatter_point import ScatterPoint
 from pretty_gpx.common.drawing.utils.scatter_point import ScatterPointCategory
 from pretty_gpx.common.gpx.gpx_bounds import GpxBounds
@@ -24,6 +26,9 @@ from pretty_gpx.common.utils.asserts import assert_in
 from pretty_gpx.common.utils.asserts import assert_same_len
 from pretty_gpx.common.utils.utils import get
 
+
+# A new visit requires leaving the summit area, not just crossing its inclusion radius.
+PEAK_REVISIT_MIN_DISTANCE_M = 1000.0
 
 def handle_flat_elevation_profile(track: GpxTrack | MultiGpxTrack,
                                   bot_ratio: float,
@@ -114,6 +119,7 @@ class ElevationProfile:
 
     true_dist_km: float
     true_uphill_m: int
+    peak_labels: list[tuple[int, str]] = field(default_factory=list)
 
     @staticmethod
     def from_track(bounds: GpxBounds,
@@ -127,7 +133,12 @@ class ElevationProfile:
         min_ele, max_ele = min(track.list_ele_m), max(track.list_ele_m)
         normalized_poly_lat = (np.array(track.list_ele_m) - min_ele) / (max_ele - min_ele)  # in [0, 1]
 
-        rel_poly_lat = (1.0-ele_ratio) + ele_ratio * normalized_poly_lat
+        has_peak_labels = any(p.category is ScatterPointCategory.MOUNTAIN_PASS and p.name for p in points)
+        # Reserve vertical headroom for rotated names while keeping the terrain and stats below.
+        if has_peak_labels:
+            ele_ratio = max(ele_ratio, 0.7)
+        profile_height = ele_ratio * (0.4 if has_peak_labels else 1.0)
+        rel_poly_lat = (1.0-ele_ratio) + profile_height * normalized_poly_lat
         rel_poly_lon = normalized_poly_lon
 
         rel_poly_lon, rel_poly_lat = downsample(x=rel_poly_lon, y=rel_poly_lat, n=n_points)
@@ -137,15 +148,40 @@ class ElevationProfile:
         scatter_indices: dict[ScatterPointCategory, list[int]] = defaultdict(list)
         distances = get_pairwise_distance_m(lonlat_1=np.array([[sp.lon, sp.lat] for sp in points]),
                                             lonlat_2=np.stack([track.list_lon, track.list_lat], axis=-1))
-        float_argmin_indices = np.argmin(distances, axis=-1) * float(n_points)/len(track)
+        peak_labels: list[tuple[int, str]] = []
+        for scatter, point_distances in zip(points, distances):
+            visits = [int(np.argmin(point_distances))]
+            if scatter.category is ScatterPointCategory.MOUNTAIN_PASS:
+                nearby = np.flatnonzero(point_distances < MOUNTAIN_PASS_MAX_DISTANCE_M)
+                if nearby.size:
+                    runs = np.split(nearby, np.flatnonzero(np.diff(nearby) > 1) + 1)
+                    merged = [runs[0]]
+                    for run in runs[1:]:
+                        previous = merged[-1]
+                        gap = slice(previous[-1], run[0] + 1)
+                        # Brief GPS drift or pauses near the boundary are one visit.
+                        travelled = track.list_cumul_dist_km[run[0]] - track.list_cumul_dist_km[previous[-1]]
+                        if (travelled < 0.25 or
+                                np.max(point_distances[gap]) < max(PEAK_REVISIT_MIN_DISTANCE_M,
+                                                               MOUNTAIN_PASS_MAX_DISTANCE_M + 50)):
+                            merged[-1] = np.concatenate((previous, run))
+                        else:
+                            merged.append(run)
+                    visits = [int(run[np.argmin(point_distances[run])]) for run in merged]
 
-        for scatter, i in zip(points, float_argmin_indices):
-            i_int = math.floor(i)
-            if scatter.category is ScatterPointCategory.START:
-                i_int = 0
-            elif scatter.category is ScatterPointCategory.END:
-                i_int = n_points - 1
-            scatter_indices[scatter.category].append(i_int)
+            indices = []
+            for visit in visits:
+                # The profile is resampled by distance, not recorded point count.
+                index = int(np.argmin(np.abs(rel_poly_lon - normalized_poly_lon[visit])))
+                if scatter.category is ScatterPointCategory.START:
+                    index = 0
+                elif scatter.category is ScatterPointCategory.END:
+                    index = n_points - 1
+                if index not in indices:
+                    indices.append(index)
+                    if scatter.category is ScatterPointCategory.MOUNTAIN_PASS and scatter.name:
+                        peak_labels.append((index, scatter.name))
+            scatter_indices[scatter.category].extend(indices)
 
         # Build the full polygon (Append the points to keep valid the scatter indices)
         rel_poly_lat = np.concatenate((rel_poly_lat, np.array([1-ele_ratio, 0., 0., 1-ele_ratio])))
@@ -155,7 +191,8 @@ class ElevationProfile:
         rel_text_lat = 0.5 * (1.0 - ele_ratio)
         return ElevationProfile(bounds=bounds, scatter_indices=dict(scatter_indices),
                                 rel_poly_lat=rel_poly_lat, rel_poly_lon=rel_poly_lon, rel_text_lat=rel_text_lat,
-                                true_uphill_m=int(track.uphill_m), true_dist_km=track.dist_km)
+                                true_uphill_m=int(track.uphill_m), true_dist_km=track.dist_km,
+                                peak_labels=peak_labels)
 
     def change_papersize(self, paper: PaperSize, bounds: GpxBounds) -> None:
         """Change Paper Size and GPX Bounds."""
@@ -175,12 +212,17 @@ class ElevationProfile:
             fig.scatter(list_lat=list_lat[indices], list_lon=list_lon[indices], color=scatter_params.color,
                         marker=scatter_params.marker, markersize=scatter_params.markersize)
 
+        if self.peak_labels:
+            fig.profile_labels(points=[(list_lon[i], list_lat[i], name) for i, name in self.peak_labels],
+                               color=params.profile_scatter_params[ScatterPointCategory.MOUNTAIN_PASS].color,
+                               fontsize=A4Float(mm=2.1), font=ANNOTATION_FONT.value)
+
         # Text
         text_lat = self.bounds.lat_min + self.rel_text_lat*self.bounds.dlat
         dist_km = get(params.user_dist_km, self.true_dist_km)
         uphill_m = get(params.user_uphill_m, self.true_uphill_m)
         fig.text(lon=self.bounds.lon_center, lat=text_lat,
-                 s=f"{dist_km:.2f} km - {uphill_m:d} m D+",
+                 s=f"{dist_km:.2f} km - {uphill_m:d} m",
                  color=params.profile_font_color,
                  fontsize=params.profile_font_size,
                  font=params.profile_fontproperties, ha="center", va="center")

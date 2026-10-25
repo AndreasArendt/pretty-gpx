@@ -2,6 +2,8 @@
 """Multi Mountain Page."""
 from dataclasses import dataclass
 
+from pretty_gpx.common.drawing.utils.color_theme import DarkTheme
+from pretty_gpx.common.drawing.utils.color_theme import LightTheme
 from pretty_gpx.common.drawing.utils.drawing_figure import A4Float
 from pretty_gpx.common.drawing.utils.fonts import STATS_FONTS
 from pretty_gpx.common.drawing.utils.plt_marker import MarkerType
@@ -62,12 +64,18 @@ class MultiMountainUiManager(UiManager[MultiMountainDrawer]):
                 'the High-Resolution SVG file when ready.\n'
                 '(N.B. the map below is a Low-Resolution preview.)']
 
+    def get_theme_mapping(self, dark_mode: bool) -> dict[str, DarkTheme | LightTheme]:
+        """Include the modern mountain palettes in the selector."""
+        themes = DarkTheme if dark_mode else LightTheme
+        return themes.get_mapping(include_modern=True)
+
     def update_drawer_params(self) -> None:
         """Update the drawer parameters based on the UI inputs."""
         theme = MOUNTAIN_COLOR_THEMES[self.theme.value]
 
         self.drawer.params.track_color = theme.track_color
         self.drawer.params.mountain_background_color = theme.background_color
+        self.drawer.params.mountain_shadow_color = theme.terrain_shadow_color
         self.drawer.params.mountain_dark_mode = theme.dark_mode
         self.drawer.params.mountain_azimuth = self.azimuth.value
 

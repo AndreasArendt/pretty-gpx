@@ -151,10 +151,98 @@ class DrawingFigure:
              fontsize: A4Float | MetersFloat,
              font: FontProperties,
              ha: str,
-             va: str) -> None:
+             va: str,
+             wrap_bounds: GpxBounds | None = None) -> None:
         """Draw Text."""
         assert self.__is_open
-        self.__ax.text(lon, lat, s, c=color, fontsize=self._eval(fontsize), fontproperties=font, ha=ha, va=va)
+        label = self.__ax.text(lon, lat, s, c=color, fontsize=self._eval(fontsize),
+                               fontproperties=font, ha=ha, va=va)
+        if wrap_bounds is None or not s:
+            return
+
+        self.__ax.apply_aspect()
+        renderer = self.__fig.canvas.get_renderer()
+        transform = self.__ax.transData
+        left, bottom = transform.transform((wrap_bounds.lon_min, wrap_bounds.lat_min))
+        right, top = transform.transform((wrap_bounds.lon_max, wrap_bounds.lat_max))
+        # Leave a small inset so glyphs do not touch the title area's edges.
+        width = (right - left) * 0.96
+        height = (top - bottom) * 0.90
+
+        def fits_width(text: str) -> bool:
+            label.set_text(text)
+            return label.get_window_extent(renderer).width <= width
+
+        lines = []
+        for paragraph in s.split("\n"):
+            line = ""
+            for word in paragraph.split():
+                candidate = f"{line} {word}" if line else word
+                if fits_width(candidate):
+                    line = candidate
+                    continue
+                if line:
+                    lines.append(line)
+                line = ""
+                # Also handle titles containing a single word wider than the bar.
+                for char in word:
+                    if line and not fits_width(line + char):
+                        lines.append(line)
+                        line = ""
+                    line += char
+            lines.append(line)
+        label.set_text("\n".join(lines))
+        box = label.get_window_extent(renderer)
+        scale = min(1., width / max(box.width, 1.), height / max(box.height, 1.))
+        label.set_fontsize(label.get_fontsize() * scale)
+        box = label.get_window_extent(renderer)
+        # Keep the original title position whenever the wrapped text fits there.
+        dx = max(left - box.x0, 0.) - max(box.x1 - right, 0.)
+        dy = max(bottom - box.y0, 0.) - max(box.y1 - top, 0.)
+        x, y = transform.transform((lon, lat))
+        label.set_position(transform.inverted().transform((x + dx, y + dy)))
+
+    @profile
+    def profile_labels(self, *, points: list[tuple[float, float, str]], color: str,
+                       fontsize: A4Float, font: FontProperties) -> None:
+        """Draw vertical peak labels directly above their profile markers."""
+        assert self.__is_open
+        labels = []
+        for lon, lat, name in sorted(points, key=lambda point: point[0]):
+            labels.append(self.__ax.annotate(
+                name, xy=(lon, lat), xytext=(0, self._eval(A4Float(mm=3.5))),
+                textcoords="offset points", rotation=90,
+                ha="left", va="center", rotation_mode="anchor",
+                color=color, fontsize=self._eval(fontsize), fontproperties=font))
+        if len(labels) < 2:
+            return
+        # Measure the rotated text and gently spread only labels that are too close.
+        self.__ax.apply_aspect()
+        renderer = self.__fig.canvas.get_renderer()
+        boxes = [label.get_window_extent(renderer) for label in labels]
+        centers = np.array([(box.x0 + box.x1) / 2 for box in boxes])
+        widths = np.array([box.width for box in boxes])
+        gap_px = self._eval(A4Float(mm=2.0)) * self.__fig.dpi / 72
+        # Isotonic regression keeps order and minimizes shifts with a minimum gap.
+        separations = (widths[:-1] + widths[1:]) / 2 + gap_px
+        offsets = np.concatenate(([0.], np.cumsum(separations)))
+        targets = centers - offsets
+        blocks = []
+        for i, target in enumerate(targets):
+            blocks.append([i, i + 1, float(target), 1])
+            while len(blocks) > 1 and blocks[-2][2] > blocks[-1][2]:
+                right = blocks.pop()
+                left = blocks.pop()
+                weight = left[3] + right[3]
+                blocks.append([left[0], right[1],
+                               (left[2] * left[3] + right[2] * right[3]) / weight, weight])
+        placed = targets.copy()
+        for start, end, value, _ in blocks:
+            placed[start:end] = value
+        placed += offsets
+        for label, original_x, target_x in zip(labels, centers, placed):
+            _, y_offset = label.get_position()
+            label.set_position(((target_x - original_x) * 72 / self.__fig.dpi, y_offset))
 
     @profile
     def polyline(self, *,

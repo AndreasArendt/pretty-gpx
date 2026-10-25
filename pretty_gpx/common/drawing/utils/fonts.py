@@ -12,6 +12,12 @@ from pretty_gpx.common.utils.paths import FONTS_DIR
 class CustomFont(Enum):
     """Custom Fonts Enum."""
     DEJA_VU_SANS_BOLD = FontProperties(weight="bold")
+    MONTSERRAT_REGULAR = FontProperties(fname=os.path.join(FONTS_DIR, "Montserrat-Regular.ttf"))
+    MONTSERRAT_SEMIBOLD = FontProperties(fname=os.path.join(FONTS_DIR, "Montserrat-SemiBold.ttf"))
+    INTER_REGULAR = FontProperties(fname=os.path.join(FONTS_DIR, "Inter-Regular.ttf"))
+    INTER_SEMIBOLD = FontProperties(fname=os.path.join(FONTS_DIR, "Inter-SemiBold.ttf"))
+    MANROPE_REGULAR = FontProperties(fname=os.path.join(FONTS_DIR, "Manrope-Regular.ttf"))
+    MANROPE_SEMIBOLD = FontProperties(fname=os.path.join(FONTS_DIR, "Manrope-SemiBold.ttf"))
     LOBSTER = FontProperties(fname=os.path.join(FONTS_DIR, "Lobster.ttf"))
     MONOTON = FontProperties(fname=os.path.join(FONTS_DIR, "Monoton.ttf"))
     GOCHI_HAND = FontProperties(fname=os.path.join(FONTS_DIR, "GochiHand.ttf"))
@@ -49,6 +55,9 @@ class CustomFont(Enum):
 ANNOTATION_FONT: Final = CustomFont.DEJA_VU_SANS_BOLD
 
 TITLE_FONTS: Final = (
+    CustomFont.MONTSERRAT_SEMIBOLD,
+    CustomFont.INTER_SEMIBOLD,
+    CustomFont.MANROPE_SEMIBOLD,
     CustomFont.LOBSTER,
     CustomFont.MONOTON,
     CustomFont.GOCHI_HAND,
@@ -75,6 +84,9 @@ TITLE_FONTS: Final = (
 )
 
 STATS_FONTS: Final = (
+    CustomFont.MONTSERRAT_REGULAR,
+    CustomFont.INTER_REGULAR,
+    CustomFont.MANROPE_REGULAR,
     CustomFont.LOBSTER,
     CustomFont.GOCHI_HAND,
     CustomFont.BASEBALL_CLUB,

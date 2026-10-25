@@ -225,7 +225,7 @@ class UiManager(Generic[T], ABC):
             # TODO(upgrade): Use same Theme colors for the different rendering modes
             self.dark_mode_switch = ui.switch(DARK_MODE_TEXT, value=True, on_change=self.on_dark_mode_switch_change)
 
-            self.theme = UiToggle[DarkTheme].create(DarkTheme.get_mapping(),
+            self.theme = UiToggle[DarkTheme | LightTheme].create(self.get_theme_mapping(True),
                                                     tooltip="Select the color theme",
                                                     on_change=self.on_click_update)
 
@@ -294,15 +294,19 @@ class UiManager(Generic[T], ABC):
     ##########################
     # Dark Mode Event
 
+    def get_theme_mapping(self, dark_mode: bool) -> dict[str, DarkTheme | LightTheme]:
+        """Return themes supported by this rendering mode."""
+        return DarkTheme.get_mapping() if dark_mode else LightTheme.get_mapping()
+
     def on_dark_mode_switch_change(self, e: events.ValueChangeEventArguments) -> None:
         """Switch between dark and light mode."""
         dark_mode = e.value
         self.dark_mode_switch.text = DARK_MODE_TEXT if dark_mode else LIGHT_MODE_TEXT
 
         if dark_mode:
-            self.theme = self.theme.change(DarkTheme.get_mapping())
+            self.theme = self.theme.change(self.get_theme_mapping(True))
         else:
-            self.theme = self.theme.change(LightTheme.get_mapping())
+            self.theme = self.theme.change(self.get_theme_mapping(False))
 
     ##########################
     # Drawing
